@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#10241f" />
+<title>Jumbl — Word Sprint</title>
+<style>
+  :root{
+    --bg:#0a1f1a; --bg2:#103029; --ink:#eafff7; --muted:#7fae9f;
+    --accent:#ffd166; --accent2:#06d6a0; --tile:#16453a; --tileEdge:#1f6152;
+    --bad:#ff6b6b;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{
+    font-family:var(--font);color:var(--ink);
+    background:radial-gradient(130% 120% at 50% 0%,var(--bg2),var(--bg) 72%);
+    min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+    user-select:none;-webkit-user-select:none;touch-action:manipulation;overflow-x:hidden;
+  }
+  header{width:100%;max-width:480px;padding:14px 18px 4px;display:flex;align-items:center;justify-content:space-between;}
+  .title{font-weight:800;font-size:20px;letter-spacing:.5px;}
+  .title span{color:var(--accent);}
+  .iconbtn{width:44px;height:44px;border:none;border-radius:12px;background:rgba(255,255,255,.06);color:var(--ink);font-size:18px;cursor:pointer;}
+  .iconbtn:focus-visible{outline:3px solid var(--accent);outline-offset:2px;}
+  .hud{width:100%;max-width:480px;padding:6px 18px;display:flex;justify-content:space-between;color:var(--muted);font-weight:700;font-size:13px;}
+  .hud b{display:block;color:var(--ink);font-size:22px;line-height:1.05;}
+  .timebar{width:100%;max-width:480px;height:8px;background:rgba(255,255,255,.07);border-radius:99px;margin:6px 18px 0;overflow:hidden;max-width:444px;}
+  .timefill{height:100%;width:100%;background:linear-gradient(90deg,var(--accent2),var(--accent));border-radius:99px;transition:width .25s linear;}
+  main{flex:1;width:100%;max-width:480px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:14px 18px;}
+  .hintline{color:var(--muted);font-size:14px;min-height:20px;text-align:center;font-weight:600;}
+  /* answer slots */
+  .answer{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;min-height:60px;}
+  .slot{width:52px;height:60px;border-radius:12px;border:2px dashed rgba(255,255,255,.14);display:grid;place-items:center;font-size:28px;font-weight:800;}
+  .slot.filled{border-style:solid;border-color:var(--accent2);background:rgba(6,214,160,.12);cursor:pointer;}
+  /* scrambled letter tiles */
+  .rack{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;}
+  .tile{
+    width:54px;height:62px;border-radius:14px;border:none;
+    background:linear-gradient(180deg,var(--tileEdge),var(--tile));
+    color:var(--ink);font-size:28px;font-weight:800;cursor:pointer;
+    box-shadow:0 4px 0 #0b2c24, 0 8px 16px rgba(0,0,0,.35);
+    transition:transform .08s ease;
+  }
+  .tile:active{transform:translateY(3px);box-shadow:0 1px 0 #0b2c24;}
+  .tile:focus-visible{outline:3px solid var(--accent);outline-offset:2px;}
+  .tile.used{visibility:hidden;}
+  .controls{display:flex;gap:10px;}
+  .btn{border:none;border-radius:14px;padding:13px 18px;font-weight:800;font-size:15px;cursor:pointer;min-height:48px;background:rgba(255,255,255,.08);color:var(--ink);}
+  .btn.primary{background:linear-gradient(135deg,var(--accent2),#46e8b6);color:#03241c;}
+  .btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px;}
+  .answer.shake{animation:shake .35s;}
+  @keyframes shake{10%,90%{transform:translateX(-2px)}30%,70%{transform:translateX(5px)}50%{transform:translateX(-7px)}}
+  .answer.pop{animation:pop .35s;}
+  @keyframes pop{40%{transform:scale(1.12)}100%{transform:scale(1)}}
+  @media (prefers-reduced-motion:reduce){.answer.shake,.answer.pop{animation:none;}}
+  /* overlay */
+  .overlay{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:rgba(6,18,15,.6);backdrop-filter:blur(6px);z-index:10;}
+  .card{background:rgba(16,48,41,.96);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:26px 22px;max-width:330px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  .card h1{margin:0 0 6px;font-size:26px;}
+  .card p{margin:0 0 16px;color:var(--muted);line-height:1.45;font-size:15px;}
+  .big{font-size:46px;font-weight:800;color:var(--accent);}
+  .play{border:none;border-radius:16px;padding:15px;font-size:18px;font-weight:800;width:100%;background:linear-gradient(135deg,var(--accent),#ffb703);color:#3a2a00;cursor:pointer;min-height:54px;}
+  .play:focus-visible{outline:3px solid #fff;outline-offset:3px;}
+  .hidden{display:none!important;}
+  footer{padding:8px 0 14px;color:var(--muted);font-size:12px;text-align:center;}
+  .toast{position:fixed;top:18%;left:50%;transform:translateX(-50%);font-weight:800;font-size:26px;color:var(--accent);opacity:0;pointer-events:none;text-shadow:0 2px 12px rgba(0,0,0,.5);}
+  .toast.show{animation:rise 1s ease;}
+  @keyframes rise{0%{opacity:0;transform:translate(-50%,10px) scale(.9)}25%{opacity:1}100%{opacity:0;transform:translate(-50%,-22px) scale(1.05)}}
+  @media (prefers-reduced-motion:reduce){.toast.show{animation:none;opacity:0;}}
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">Jum<span>bl</span></div>
+    <button class="iconbtn" id="muteBtn" aria-label="Toggle sound" aria-pressed="false">🔊</button>
+  </header>
+
+  <div class="hud" aria-live="polite">
+    <div>SCORE<b id="score">0</b></div>
+    <div style="text-align:center">STREAK<b id="streak">0</b></div>
+    <div style="text-align:right">BEST<b id="best">0</b></div>
+  </div>
+  <div class="timebar"><div class="timefill" id="timefill"></div></div>
+
+  <main>
+    <div class="hintline" id="hint">&nbsp;</div>
+    <div class="answer" id="answer" aria-label="Your word"></div>
+    <div class="rack" id="rack" aria-label="Letter tiles"></div>
+    <div class="controls">
+      <button class="btn" id="shuffleBtn">🔀 Shuffle</button>
+      <button class="btn" id="hintBtn">💡 Hint</button>
+      <button class="btn primary" id="clearBtn">⌫ Clear</button>
+    </div>
+  </main>
+
+  <div class="toast" id="toast" aria-hidden="true"></div>
+
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <h1 id="ovTitle">Jumbl</h1>
+      <p id="ovText">Unscramble the word before the clock runs out. Tap letters to build it, longer words and faster solves score more. Keep your streak alive!</p>
+      <div class="big hidden" id="ovScore">0</div>
+      <button class="play" id="playBtn">Start sprint</button>
+    </div>
+  </div>
+
+  <footer>No accounts • plays offline • scores stay on your device</footer>
+
+<script>
+/* =====================================================================
+   Jumbl — a timed word-unscramble sprint.
+   Core loop: a scrambled word appears; tap tiles to spell it. Correct =
+   points + time bonus + streak; the next word appears instantly. A global
+   countdown gives the session a clean 90s arc. Fully offline: the word
+   bank is embedded and answers are validated locally (no dictionary file).
+   ===================================================================== */
+(() => {
+  "use strict";
+  const $ = (id)=>document.getElementById(id);
+  const reduceMotion = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- Embedded word bank (grouped by length; each has a hint) ----------
+  // Kept fully on-device so the app needs no network and no dictionary file.
+  const WORDS = [
+    // 4 letters
+    {w:"LAMP",h:"It lights a room"},{w:"BOAT",h:"Floats on water"},{w:"FROG",h:"Hops and croaks"},
+    {w:"MOON",h:"Lights the night sky"},{w:"CAKE",h:"Birthday treat"},{w:"WIND",h:"Moving air"},
+    {w:"STAR",h:"Twinkles above"},{w:"FISH",h:"Swims with fins"},{w:"GOLD",h:"Shiny precious metal"},
+    {w:"RAIN",h:"Falls from clouds"},{w:"NEST",h:"Bird's home"},{w:"KITE",h:"Flies on a string"},
+    // 5 letters
+    {w:"APPLE",h:"Keeps the doctor away"},{w:"RIVER",h:"Flowing water"},{w:"TIGER",h:"Striped big cat"},
+    {w:"CLOUD",h:"Floats in the sky"},{w:"PIANO",h:"Has black and white keys"},{w:"BREAD",h:"Bakery staple"},
+    {w:"OCEAN",h:"Vast salty water"},{w:"LEMON",h:"Sour yellow fruit"},{w:"HONEY",h:"Bees make it"},
+    {w:"CHESS",h:"Game of kings"},{w:"BEACH",h:"Sandy shore"},{w:"SMILE",h:"A happy face"},
+    {w:"PLANT",h:"Grows in soil"},{w:"CANDY",h:"Sweet treat"},{w:"ROBOT",h:"Mechanical helper"},
+    // 6 letters
+    {w:"GARDEN",h:"Where flowers grow"},{w:"ORANGE",h:"Citrus fruit and a color"},{w:"PLANET",h:"Orbits a star"},
+    {w:"CASTLE",h:"Royal fortress"},{w:"PENCIL",h:"You write with it"},{w:"WINTER",h:"Coldest season"},
+    {w:"ROCKET",h:"Blasts into space"},{w:"BRIDGE",h:"Crosses a river"},{w:"FOREST",h:"Lots of trees"},
+    {w:"GUITAR",h:"Six-string instrument"},{w:"CAMERA",h:"Takes photos"},{w:"BUTTON",h:"Press or fasten it"},
+    // 7 letters
+    {w:"RAINBOW",h:"Appears after rain"},{w:"DOLPHIN",h:"Smart sea mammal"},{w:"LANTERN",h:"Portable light"},
+    {w:"PENGUIN",h:"Tuxedo bird"},{w:"JOURNEY",h:"A long trip"},{w:"CRYSTAL",h:"Clear sparkling rock"},
+    {w:"HARVEST",h:"Gathering crops"},{w:"THUNDER",h:"Follows lightning"},{w:"BICYCLE",h:"Two-wheeled ride"},
+    {w:"MORNING",h:"Start of the day"},
+  ];
+
+  // ---------- State ----------
+  const store = {
+    get best(){ return +(g("jb_best")||0); }, set best(v){ s("jb_best",v); },
+    get muted(){ return g("jb_muted")==="1"; }, set muted(v){ s("jb_muted",v?"1":"0"); },
+  };
+  function g(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function s(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+
+  const Sound = {
+    ctx:null, muted:store.muted,
+    ensure(){ if(!this.ctx){ try{this.ctx=new (window.AudioContext||window.webkitAudioContext)();}catch(e){} } },
+    tone(f,d=0.09,t="sine",gn=0.16){ if(this.muted)return; this.ensure(); if(!this.ctx)return;
+      const c=this.ctx,n=c.currentTime,o=c.createOscillator(),ga=c.createGain();
+      o.type=t;o.frequency.setValueAtTime(f,n);ga.gain.setValueAtTime(.0001,n);
+      ga.gain.exponentialRampToValueAtTime(gn,n+.01);ga.gain.exponentialRampToValueAtTime(.0001,n+d);
+      o.connect(ga).connect(c.destination);o.start(n);o.stop(n+d+.02);},
+    pick(){ this.tone(420,0.05,"square",0.10); },
+    good(streak){ const b=520+Math.min(streak,12)*40; this.tone(b,0.10,"triangle",0.18); setTimeout(()=>this.tone(b*1.5,0.12,"triangle",0.16),70); },
+    bad(){ this.tone(200,0.18,"sawtooth",0.18); },
+    end(){ this.tone(300,0.3,"sine",0.16); },
+  };
+  function haptic(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+  // ---------- Game variables ----------
+  const SESSION = 90; // seconds
+  let timeLeft = SESSION, score=0, streak=0, current=null, built=[], deck=[], tEnd=0, running=false, tick=null;
+
+  function shuffleArr(a){ for(let i=a.length-1;i>0;i--){const j=(Math.random()*(i+1))|0;[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+  function buildDeck(){ deck = shuffleArr(WORDS.map((_,i)=>i)); }
+  function nextWord(){
+    if(deck.length===0) buildDeck();
+    const idx = deck.pop();
+    const entry = WORDS[idx];
+    // scramble letters, ensure it differs from the answer
+    let letters;
+    do { letters = shuffleArr(entry.w.split("")); } while(letters.join("")===entry.w && entry.w.length>1);
+    current = { word:entry.w, hint:entry.h, letters, used:Array(entry.w.length).fill(false) };
+    built = [];
+    render();
+  }
+
+  // ---------- Rendering ----------
+  function render(){
+    // answer slots
+    const ans = $("answer"); ans.innerHTML="";
+    const n = current.word.length;
+    for(let i=0;i<n;i++){
+      const d=document.createElement("div");
+      d.className="slot"+(built[i]!=null?" filled":"");
+      d.textContent = built[i]!=null ? built[i].ch : "";
+      if(built[i]!=null){ d.setAttribute("role","button"); d.tabIndex=0; d.title="Tap to remove";
+        d.addEventListener("click",()=>removeAt(i)); }
+      ans.appendChild(d);
+    }
+    // rack
+    const rack=$("rack"); rack.innerHTML="";
+    current.letters.forEach((ch,i)=>{
+      const b=document.createElement("button");
+      b.className="tile"+(current.used[i]?" used":"");
+      b.textContent=ch; b.setAttribute("aria-label","Letter "+ch);
+      b.addEventListener("click",()=>addLetter(i));
+      rack.appendChild(b);
+    });
+    $("hint").textContent = current.hint ? "Hint: "+current.hint : " ";
+  }
+
+  function addLetter(i){
+    if(!running || current.used[i]) return;
+    current.used[i]=true;
+    built.push({ch:current.letters[i], from:i});
+    Sound.pick(); haptic(6);
+    render();
+    if(built.length===current.word.length) checkWord();
+  }
+  function removeAt(i){
+    if(!running || built[i]==null) return;
+    const b=built[i]; current.used[b.from]=false;
+    built.splice(i,1); Sound.pick(); haptic(4); render();
+  }
+  function clearAll(){
+    if(!running) return;
+    built.forEach(b=>current.used[b.from]=false); built=[]; render();
+  }
+  function shuffleRack(){
+    if(!running) return;
+    // keep used flags tied to letters by rebuilding from scratch
+    clearAll();
+    current.letters = shuffleArr(current.letters);
+    current.used = Array(current.letters.length).fill(false);
+    Sound.pick(); render();
+  }
+  function useHint(){
+    if(!running) return;
+    // Reveal the next correct letter into the answer, costs 3 seconds.
+    const pos = built.length;
+    if(pos>=current.word.length) return;
+    const need = current.word[pos];
+    const idx = current.letters.findIndex((c,k)=>!current.used[k] && c===need);
+    if(idx>=0){ timeLeft=Math.max(0,timeLeft-3); addLetter(idx); }
+  }
+
+  function checkWord(){
+    const guess = built.map(b=>b.ch).join("");
+    if(guess===current.word){
+      const len=current.word.length;
+      const pts = len*10 + streak*5;        // length + streak bonus
+      score += pts; streak++;
+      timeLeft = Math.min(SESSION, timeLeft + 2); // small time reward
+      $("score").textContent=score; $("streak").textContent=streak;
+      Sound.good(streak); haptic([10,20,10]);
+      toast("+"+pts);
+      pop();
+      setTimeout(()=>{ if(running) nextWord(); }, reduceMotion?120:300);
+    } else {
+      streak=0; $("streak").textContent=0;
+      Sound.bad(); haptic(40); shake();
+      setTimeout(clearAll, reduceMotion?120:300);
+    }
+  }
+
+  // ---------- Juice ----------
+  function toast(t){ const el=$("toast"); el.textContent=t; el.classList.remove("show"); void el.offsetWidth; el.classList.add("show"); }
+  function shake(){ const a=$("answer"); a.classList.remove("shake"); void a.offsetWidth; a.classList.add("shake"); }
+  function pop(){ const a=$("answer"); a.classList.remove("pop"); void a.offsetWidth; a.classList.add("pop"); }
+
+  // ---------- Timer / lifecycle ----------
+  function start(){
+    Sound.ensure();
+    score=0; streak=0; timeLeft=SESSION; running=true;
+    $("score").textContent=0; $("streak").textContent=0;
+    $("overlay").classList.add("hidden");
+    buildDeck(); nextWord();
+    tEnd=performance.now()+SESSION*1000;
+    if(tick) clearInterval(tick);
+    tick=setInterval(loop, 100);
+    updateBar();
+  }
+  function loop(){
+    timeLeft -= 0.1;
+    if(timeLeft<=0){ timeLeft=0; updateBar(); end(); return; }
+    updateBar();
+  }
+  function updateBar(){ $("timefill").style.width = (timeLeft/SESSION*100)+"%"; }
+  function end(){
+    running=false; if(tick){clearInterval(tick);tick=null;}
+    Sound.end(); haptic([20,40,40]);
+    if(score>store.best){ store.best=score; }
+    $("best").textContent=store.best;
+    $("ovTitle").textContent="Time!";
+    $("ovText").textContent = score>=store.best&&score>0 ? "New best! Tap to run it back." :
+      "You scored "+score+". Your best is "+store.best+".";
+    $("ovScore").textContent=score; $("ovScore").classList.remove("hidden");
+    $("playBtn").textContent="Play again";
+    $("overlay").classList.remove("hidden");
+  }
+
+  // ---------- Wire up ----------
+  $("playBtn").addEventListener("click", start);
+  $("shuffleBtn").addEventListener("click", shuffleRack);
+  $("hintBtn").addEventListener("click", useHint);
+  $("clearBtn").addEventListener("click", clearAll);
+  window.addEventListener("keydown",(e)=>{
+    if(!running) return;
+    const k=e.key.toUpperCase();
+    if(/^[A-Z]$/.test(k)){ const i=current.letters.findIndex((c,j)=>!current.used[j]&&c===k); if(i>=0) addLetter(i); }
+    else if(e.key==="Backspace"){ e.preventDefault(); if(built.length) removeAt(built.length-1); }
+  });
+  function renderMute(){ $("muteBtn").textContent=Sound.muted?"🔇":"🔊"; $("muteBtn").setAttribute("aria-pressed",String(Sound.muted)); }
+  $("muteBtn").addEventListener("click",()=>{ Sound.muted=!Sound.muted; store.muted=Sound.muted; renderMute(); if(!Sound.muted) Sound.tone(660,.08,"sine",.14); });
+
+  // ---------- Boot ----------
+  $("best").textContent=store.best; renderMute(); updateBar();
+  window.__JB__={ get state(){return {score,streak,timeLeft,running,current};}, start, addLetter, checkWord, WORDS };
+})();
+</script>
+</body>
+</html>

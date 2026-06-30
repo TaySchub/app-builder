@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0c1118" />
+<title>Echo</title>
+<style>
+  :root{
+    --bg:#0a0f16; --bg2:#111a26; --ink:#eaf2ff; --muted:#7e93ad; --accent:#7cf0ff;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,system-ui,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;margin:0;}
+  body{font-family:var(--font);color:var(--ink);
+    background:radial-gradient(130% 120% at 50% 0%,var(--bg2),var(--bg) 72%);
+    min-height:100dvh;display:flex;flex-direction:column;align-items:center;
+    user-select:none;-webkit-user-select:none;touch-action:manipulation;overflow:hidden;}
+  header{width:100%;max-width:480px;padding:14px 18px 4px;display:flex;align-items:center;justify-content:space-between;}
+  .title{font-weight:800;font-size:20px;letter-spacing:3px;}
+  .title span{color:var(--accent);}
+  .iconbtn{width:44px;height:44px;border:none;border-radius:12px;background:rgba(255,255,255,.06);color:var(--ink);font-size:18px;cursor:pointer;}
+  .iconbtn:focus-visible{outline:3px solid var(--accent);outline-offset:2px;}
+  .hud{width:100%;max-width:480px;padding:6px 18px;display:flex;justify-content:space-between;color:var(--muted);font-weight:700;font-size:13px;}
+  .hud b{display:block;color:var(--ink);font-size:22px;line-height:1.05;}
+  main{flex:1;width:100%;max-width:480px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;padding:14px 18px;}
+  .statusline{color:var(--muted);font-weight:700;min-height:22px;font-size:15px;letter-spacing:.3px;}
+  .pads{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;width:min(86vw,340px);}
+  .pad{
+    aspect-ratio:1/1;border:none;border-radius:22px;cursor:pointer;position:relative;
+    background:var(--c);filter:brightness(.42) saturate(.85);
+    transition:filter .12s ease, transform .08s ease;
+    box-shadow:inset 0 0 0 2px rgba(255,255,255,.06);min-width:44px;min-height:44px;
+  }
+  .pad.lit{filter:brightness(1.25) saturate(1.1);transform:scale(1.03);box-shadow:0 0 28px var(--c), inset 0 0 0 2px rgba(255,255,255,.25);}
+  .pad:focus-visible{outline:3px solid #fff;outline-offset:3px;}
+  .pad[disabled]{cursor:default;}
+  @media (prefers-reduced-motion:reduce){ .pad,.pad.lit{transition:filter .05s;transform:none;} }
+  .overlay{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:rgba(6,10,16,.6);backdrop-filter:blur(6px);z-index:10;}
+  .card{background:rgba(17,26,38,.96);border:1px solid rgba(255,255,255,.08);border-radius:22px;padding:26px 22px;max-width:330px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);}
+  .card h1{margin:0 0 6px;font-size:26px;}
+  .card p{margin:0 0 16px;color:var(--muted);line-height:1.45;font-size:15px;}
+  .big{font-size:46px;font-weight:800;color:var(--accent);}
+  .play{border:none;border-radius:16px;padding:15px;font-size:18px;font-weight:800;width:100%;background:linear-gradient(135deg,var(--accent),#5ad1e6);color:#03242b;cursor:pointer;min-height:54px;}
+  .play:focus-visible{outline:3px solid #fff;outline-offset:3px;}
+  .hidden{display:none!important;}
+  footer{padding:8px 0 14px;color:var(--muted);font-size:12px;text-align:center;}
+</style>
+</head>
+<body>
+  <header>
+    <div class="title">ECH<span>O</span></div>
+    <button class="iconbtn" id="muteBtn" aria-label="Toggle sound" aria-pressed="false">🔊</button>
+  </header>
+  <div class="hud" aria-live="polite">
+    <div>ROUND<b id="round">0</b></div>
+    <div style="text-align:right">BEST<b id="best">0</b></div>
+  </div>
+
+  <main>
+    <div class="statusline" id="status" role="status">Press start, then watch the pattern</div>
+    <div class="pads" id="pads" aria-label="Echo pads">
+      <button class="pad" data-i="0" style="--c:#ff5d8f" aria-label="Pad 1" disabled></button>
+      <button class="pad" data-i="1" style="--c:#36e0c2" aria-label="Pad 2" disabled></button>
+      <button class="pad" data-i="2" style="--c:#ffd166" aria-label="Pad 3" disabled></button>
+      <button class="pad" data-i="3" style="--c:#7c8bff" aria-label="Pad 4" disabled></button>
+    </div>
+  </main>
+
+  <div class="overlay" id="overlay">
+    <div class="card">
+      <h1 id="ovTitle">Echo</h1>
+      <p id="ovText">Watch the glowing pattern, then tap it back from memory. Each round adds one more step and the melody grows. How long a sequence can you echo?</p>
+      <div class="big hidden" id="ovScore">0</div>
+      <button class="play" id="playBtn">Start</button>
+    </div>
+  </div>
+
+  <footer>No accounts • plays offline • scores stay on your device</footer>
+
+<script>
+/* =====================================================================
+   Echo — a melodic memory game (Simon-style with a musical twist).
+   Core loop: the game plays a growing sequence of pads (each a note in a
+   pleasant pentatonic scale); the player repeats it. Correct => round +1
+   and the sequence grows. One wrong tap ends the run.
+   Self-contained: tones via Web Audio, no assets.
+   ===================================================================== */
+(() => {
+  "use strict";
+  const $=(id)=>document.getElementById(id);
+  const reduceMotion=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const store={ get best(){return +(g("ec_best")||0);}, set best(v){s("ec_best",v);},
+    get muted(){return g("ec_muted")==="1";}, set muted(v){s("ec_muted",v?"1":"0");} };
+  function g(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function s(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+
+  // Pentatonic notes so any sequence sounds musical (C major pentatonic).
+  const NOTES=[329.63, 392.00, 440.00, 587.33]; // E4 G4 A4 D5
+  const Sound={ ctx:null, muted:store.muted,
+    ensure(){if(!this.ctx){try{this.ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}},
+    note(i,dur=0.42){ if(this.muted)return; this.ensure(); if(!this.ctx)return;
+      const c=this.ctx,n=c.currentTime,o=c.createOscillator(),o2=c.createOscillator(),ga=c.createGain();
+      o.type="sine"; o2.type="triangle";
+      o.frequency.value=NOTES[i]; o2.frequency.value=NOTES[i]*2;
+      ga.gain.setValueAtTime(.0001,n);
+      ga.gain.exponentialRampToValueAtTime(0.22,n+0.02);
+      ga.gain.exponentialRampToValueAtTime(.0001,n+dur);
+      o.connect(ga); o2.connect(ga); ga.connect(c.destination);
+      o.start(n); o2.start(n); o.stop(n+dur+0.02); o2.stop(n+dur+0.02); },
+    fail(){ if(this.muted)return; this.ensure(); if(!this.ctx)return;
+      const c=this.ctx,n=c.currentTime,o=c.createOscillator(),ga=c.createGain();
+      o.type="sawtooth"; o.frequency.setValueAtTime(220,n); o.frequency.exponentialRampToValueAtTime(80,n+0.4);
+      ga.gain.setValueAtTime(0.2,n); ga.gain.exponentialRampToValueAtTime(.0001,n+0.45);
+      o.connect(ga).connect(c.destination); o.start(n); o.stop(n+0.46); },
+    win(){ [0,1,2,3].forEach((i,k)=>setTimeout(()=>this.note(i,0.25),k*90)); } };
+  function haptic(p){try{if(navigator.vibrate)navigator.vibrate(p);}catch(e){}}
+
+  // ---------- state ----------
+  const pads=[...document.querySelectorAll(".pad")];
+  let seq=[], step=0, round=0, accepting=false, playing=false;
+
+  function setStatus(t){ $("status").textContent=t; }
+
+  function lightPad(i,dur=380){
+    const el=pads[i]; el.classList.add("lit");
+    Sound.note(i, dur/1000);
+    setTimeout(()=>el.classList.remove("lit"), reduceMotion?Math.min(dur,160):dur);
+  }
+
+  function start(){
+    Sound.ensure();
+    seq=[]; round=0; $("round").textContent=0;
+    $("overlay").classList.add("hidden");
+    nextRound();
+  }
+
+  function nextRound(){
+    round++; $("round").textContent=round;
+    seq.push((Math.random()*NOTES.length)|0);
+    accepting=false;
+    setStatus("Watch…");
+    playSequence();
+  }
+
+  function playSequence(){
+    playing=true; setPadsEnabled(false);
+    let i=0;
+    const gap=reduceMotion?260: Math.max(280, 560 - round*12); // speeds up slightly
+    const lit=Math.max(180, gap-120);
+    const tickOne=()=>{
+      if(i>=seq.length){ // done showing
+        playing=false; accepting=true; step=0;
+        setPadsEnabled(true); setStatus("Your turn — repeat it");
+        return;
+      }
+      lightPad(seq[i], lit);
+      i++;
+      setTimeout(tickOne, gap);
+    };
+    setTimeout(tickOne, 500);
+  }
+
+  function setPadsEnabled(on){ pads.forEach(p=>{ p.disabled=!on; }); }
+
+  function tapPad(i){
+    if(!accepting) return;
+    lightPad(i, 200); haptic(8);
+    if(seq[step]===i){
+      step++;
+      if(step===seq.length){
+        // round complete
+        accepting=false; setPadsEnabled(false);
+        if(round>store.best){ store.best=round; $("best").textContent=round; }
+        setStatus("Nice!"); haptic([10,20,10]);
+        if(round%5===0 && !store.muted) Sound.win();
+        setTimeout(nextRound, 650);
+      }
+    } else {
+      // wrong -> game over
+      accepting=false; setPadsEnabled(false);
+      Sound.fail(); haptic([30,40,40]);
+      endGame();
+    }
+  }
+
+  function endGame(){
+    const reached=round-1>=0?round:0;
+    setStatus("");
+    $("ovTitle").textContent="Sequence broken";
+    $("ovText").textContent= round>=store.best&&round>0 ?
+      "New best — you echoed "+round+" steps! Tap to try again." :
+      "You reached round "+round+". Best: "+store.best+".";
+    $("ovScore").textContent=round; $("ovScore").classList.remove("hidden");
+    $("playBtn").textContent="Play again";
+    $("overlay").classList.remove("hidden");
+  }
+
+  // ---------- wire up ----------
+  pads.forEach(p=>p.addEventListener("click",()=>tapPad(+p.dataset.i)));
+  // keyboard: keys 1-4 map to pads
+  window.addEventListener("keydown",(e)=>{
+    const m={"1":0,"2":1,"3":2,"4":3}; if(e.key in m){ if(accepting) tapPad(m[e.key]); }
+  });
+  $("playBtn").addEventListener("click",start);
+  function renderMute(){ $("muteBtn").textContent=Sound.muted?"🔇":"🔊"; $("muteBtn").setAttribute("aria-pressed",String(Sound.muted)); }
+  $("muteBtn").addEventListener("click",()=>{ Sound.muted=!Sound.muted; store.muted=Sound.muted; renderMute(); if(!Sound.muted)Sound.note(2,0.18); });
+
+  // ---------- boot ----------
+  $("best").textContent=store.best; renderMute();
+  window.__EC__={ get state(){return {seq,step,round,accepting};}, start, tapPad, NOTES };
+})();
+</script>
+</body>
+</html>
