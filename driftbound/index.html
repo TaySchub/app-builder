@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#05080f" />
+<title>Driftbound — flip gravity, stay alive</title>
+<style>
+  :root{
+    --bg:#05080f; --ink:#eaf2ff; --muted:#7f8bb0; --accent:#27e0c8; --accent2:#ff5da2;
+    --tap:44px; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg); color:var(--ink); font-family:var(--font);
+    display:flex; flex-direction:column; min-height:100dvh; overflow:hidden;
+    user-select:none;-webkit-user-select:none; touch-action:none;
+  }
+  header{display:flex; align-items:center; gap:10px; padding:12px 14px; z-index:3}
+  header h1{font-size:16px; margin:0; letter-spacing:1px; font-weight:800}
+  header .sub{color:var(--muted); font-size:11px; letter-spacing:.5px}
+  .spacer{flex:1}
+  button.icon{
+    width:var(--tap);height:var(--tap);min-width:var(--tap);border-radius:12px;
+    border:1px solid #1d2740; background:#0c1322; color:var(--ink); font-size:18px; cursor:pointer;
+    display:grid; place-items:center;
+  }
+  button.icon:focus-visible,.btn:focus-visible{outline:3px solid var(--accent); outline-offset:2px}
+  .stage{flex:1; position:relative}
+  canvas{position:absolute; inset:0; width:100%; height:100%; display:block}
+  .hud{
+    position:absolute; top:10px; left:0; right:0; text-align:center; pointer-events:none;
+    font-variant-numeric:tabular-nums; z-index:2;
+  }
+  .hud .score{font-size:44px; font-weight:800; text-shadow:0 2px 20px #27e0c855}
+  .overlay{position:absolute; inset:0; display:grid; place-items:center; z-index:4}
+  .overlay.hidden{display:none}
+  .card{
+    background:linear-gradient(180deg,#0e1726,#0a1019); border:1px solid #1d2740;
+    border-radius:20px; padding:26px 26px; text-align:center; width:min(360px,86vw);
+    box-shadow:0 24px 70px #000a;
+  }
+  .card h2{margin:0 0 4px; font-size:30px; letter-spacing:1px}
+  .card p{margin:6px 0 18px; color:var(--muted); font-size:14px; line-height:1.5}
+  .card .big{font-size:15px; color:var(--ink)}
+  .btn{
+    appearance:none;border:0;cursor:pointer;font-family:inherit;font-weight:800;letter-spacing:.5px;
+    background:linear-gradient(180deg,var(--accent),#13b8a6); color:#04201d;
+    padding:15px 22px; border-radius:14px; font-size:17px; min-height:var(--tap); width:100%;
+  }
+  .btn:active{transform:translateY(1px)}
+  .hint{color:var(--muted); font-size:12px; margin-top:12px}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+</style>
+</head>
+<body>
+<header>
+  <h1>DRIFTBOUND</h1><span class="sub">tap to flip gravity</span>
+  <div class="spacer"></div>
+  <button class="icon" id="mute" aria-label="Toggle sound">🔊</button>
+</header>
+<div class="stage" id="stage">
+  <canvas id="cv" aria-label="Driftbound game"></canvas>
+  <div class="hud"><div class="score" id="score">0</div></div>
+  <div class="overlay" id="overlay" role="dialog" aria-modal="true">
+    <div class="card" id="card">
+      <h2 id="ttl">DRIFTBOUND</h2>
+      <p id="body">You drift through the gaps. <b>Tap anywhere</b> (or press Space) to flip which way gravity pulls. Don't hit anything.</p>
+      <button class="btn" id="play">Tap to start</button>
+      <div class="hint">Best: <b id="best">0</b></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   DRIFTBOUND — one-button gravity-flip endless dodge.
+   Gravity continuously pulls the orb up OR down; a tap flips the
+   direction. Thread the gaps in the scrolling walls. Difficulty ramps
+   gently (faster scroll, narrower gaps). Offline, single file.
+   ===================================================================== */
+(function(){
+  "use strict";
+  const $=id=>document.getElementById(id);
+  const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},
+               set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+
+  // ---------- audio ----------
+  const Sound=(()=>{
+    let ctx=null, muted=store.get("drift.muted",false);
+    const ac=()=>{ if(!ctx){try{ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}} return ctx; };
+    function blip(f,dur=0.09,type="square",vol=0.14){
+      if(muted)return; const c=ac(); if(!c)return;
+      const o=c.createOscillator(),g=c.createGain();
+      o.type=type;o.frequency.value=f;o.connect(g);g.connect(c.destination);
+      const t=c.currentTime;g.gain.setValueAtTime(0.0001,t);
+      g.gain.exponentialRampToValueAtTime(vol,t+0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.start(t);o.stop(t+dur+0.02);
+    }
+    return{
+      flip(){ blip(420,0.07,"square",0.10); },
+      score(){ blip(880,0.06,"triangle",0.12); },
+      die(){ if(muted)return; const c=ac(); if(!c)return;
+        const o=c.createOscillator(),g=c.createGain(); o.type="sawtooth";
+        o.connect(g);g.connect(c.destination); const t=c.currentTime;
+        o.frequency.setValueAtTime(300,t); o.frequency.exponentialRampToValueAtTime(60,t+0.4);
+        g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.0001,t+0.45);
+        o.start(t);o.stop(t+0.46);
+      },
+      toggle(){muted=!muted;store.set("drift.muted",muted);return muted;},
+      get muted(){return muted;}, resume(){const c=ac(); if(c&&c.state==="suspended")c.resume();}
+    };
+  })();
+  const haptic=ms=>{try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}};
+
+  const muteBtn=$("mute");
+  const paintMute=()=>muteBtn.textContent=Sound.muted?"🔇":"🔊";
+  paintMute();
+  muteBtn.addEventListener("click",e=>{e.stopPropagation();Sound.toggle();paintMute();haptic(8);});
+
+  // ---------- canvas ----------
+  const cv=$("cv"),ctx=cv.getContext("2d");
+  let W=0,H=0,DPR=1;
+  function resize(){
+    const r=cv.getBoundingClientRect(); DPR=Math.min(window.devicePixelRatio||1,2);
+    W=r.width;H=r.height; cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener("resize",resize);
+
+  // ---------- game state ----------
+  let best=store.get("drift.best",0);
+  $("best").textContent=best;
+  const G=0.34;                 // gravity magnitude (per frame^2, scaled by dt)
+  let state="menu";             // menu | play | dead
+  let player, walls, dir, score, speed, spawnX, gapH, particles, shake, t0, lastSpawn;
+
+  function reset(){
+    player={ x: W*0.28, y:H/2, vy:0, r:11 };
+    dir=1;                      // 1 = gravity down, -1 = gravity up
+    walls=[];                   // {x, gapY, gapH, scored}
+    score=0; $("score").textContent=0;
+    speed=2.6;                  // px per frame baseline
+    gapH=Math.max(150, H*0.34); // generous start
+    particles=[]; shake=0;
+    // first wall placed far enough to react
+    spawnX=W+40; lastSpawn=W*0.9;
+    addWall(W+W*0.55);
+    addWall(W+W*0.55+wallSpacing());
+  }
+  function wallSpacing(){ return Math.max(220, W*0.62); }
+  function addWall(x){
+    const margin=50;
+    const gy = margin + Math.random()*(H-2*margin-gapH);
+    walls.push({x, gapY:gy, gapH:gapH, scored:false, w:24});
+  }
+
+  // ---------- input ----------
+  function flip(){
+    if(state==="menu"){ start(); return; }
+    if(state!=="play") return;
+    dir*=-1; Sound.flip(); haptic(6);
+    // tiny kick for game feel
+    player.vy = dir*1.4;
+    for(let i=0;i<6;i++) spark(player.x,player.y, "#27e0c8");
+  }
+  function onTap(e){
+    if(e.target===muteBtn) return;
+    Sound.resume();
+    if(state==="dead"){ return; } // dead uses the button
+    flip(); if(e.cancelable) e.preventDefault();
+  }
+  $("stage").addEventListener("pointerdown",onTap);
+  window.addEventListener("keydown",e=>{
+    if(e.code==="Space"||e.key===" "){ e.preventDefault();
+      if(state==="dead"){ $("play").click(); } else { Sound.resume(); flip(); }
+    }
+  });
+
+  // ---------- particles ----------
+  function spark(x,y,c){ if(reduceMotion)return; const a=Math.random()*6.283,s=1+Math.random()*3;
+    particles.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,c}); }
+
+  // ---------- loop ----------
+  let last=0;
+  function frame(ts){
+    requestAnimationFrame(frame);
+    const dt=Math.min(2.2,(ts-last)/16.67||1); last=ts;
+    if(state==="play") update(dt);
+    render();
+  }
+  function update(dt){
+    // physics
+    player.vy += dir*G*dt;
+    player.vy = Math.max(-9,Math.min(9,player.vy));
+    player.y += player.vy*dt;
+
+    // walls
+    for(const w of walls){ w.x -= speed*dt; }
+    // recycle / spawn
+    if(walls.length && walls[0].x < -40) walls.shift();
+    const lastW=walls[walls.length-1];
+    if(lastW && lastW.x < W - wallSpacing()){ addWall(W+24); }
+
+    // scoring + collision
+    for(const w of walls){
+      if(!w.scored && w.x + w.w < player.x){ w.scored=true; score++; $("score").textContent=score;
+        Sound.score(); ramp(); for(let i=0;i<5;i++) spark(player.x,player.y,"#ffd86e"); }
+      // collision with wall (two rects: top & bottom of gap)
+      if(player.x+player.r > w.x && player.x-player.r < w.x+w.w){
+        if(player.y-player.r < w.gapY || player.y+player.r > w.gapY+w.gapH){ die(); }
+      }
+    }
+    // ceiling / floor death
+    if(player.y-player.r<0 || player.y+player.r>H){ die(); }
+
+    // particles
+    for(const p of particles){ p.x+=p.vx; p.y+=p.vy; p.vy+=0.06; p.life-=0.03; }
+    particles=particles.filter(p=>p.life>0);
+    if(shake>0) shake*=0.85;
+  }
+  function ramp(){
+    // gentle difficulty curve
+    speed=Math.min(6.4, 2.6 + score*0.07);
+    gapH=Math.max(112, (Math.max(150,H*0.34)) - score*1.6);
+  }
+  function die(){
+    if(state!=="play")return;
+    state="dead"; Sound.die(); haptic([30,40,30]); shake=14;
+    for(let i=0;i<24;i++) spark(player.x,player.y, i%2?"#ff5da2":"#27e0c8");
+    if(score>best){ best=score; store.set("drift.best",best); }
+    setTimeout(()=>{
+      $("ttl").textContent = score>best-1 && score===best ? "NEW BEST!" : "DRIFTED OUT";
+      $("body").innerHTML = `<span class="big">Score <b>${score}</b> &nbsp;·&nbsp; Best <b>${best}</b></span><br><br>Tap to flip gravity. Stay in the gaps.`;
+      $("play").textContent="Go again";
+      $("best").textContent=best;
+      $("overlay").classList.remove("hidden");
+    }, reduceMotion?0:420);
+  }
+
+  // ---------- render ----------
+  function render(){
+    ctx.save();
+    if(shake>0.4){ ctx.translate((Math.random()-0.5)*shake,(Math.random()-0.5)*shake); }
+    ctx.clearRect(-20,-20,W+40,H+40);
+
+    // subtle gravity-direction backdrop tint
+    const g=ctx.createLinearGradient(0,0,0,H);
+    if(dir>0){ g.addColorStop(0,"#0a1322"); g.addColorStop(1,"#0c0a1a"); }
+    else     { g.addColorStop(0,"#0c0a1a"); g.addColorStop(1,"#0a1322"); }
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+
+    // walls
+    for(const w of walls){
+      ctx.fillStyle="#16314a";
+      ctx.fillRect(w.x,0,w.w,w.gapY);
+      ctx.fillRect(w.x,w.gapY+w.gapH,w.w,H-(w.gapY+w.gapH));
+      // glowing gap edges
+      ctx.fillStyle="#27e0c8";
+      ctx.fillRect(w.x,w.gapY-3,w.w,3);
+      ctx.fillRect(w.x,w.gapY+w.gapH,w.w,3);
+    }
+    // particles
+    for(const p of particles){ ctx.globalAlpha=Math.max(0,p.life); ctx.fillStyle=p.c;
+      ctx.beginPath(); ctx.arc(p.x,p.y,2.6,0,7); ctx.fill(); }
+    ctx.globalAlpha=1;
+
+    // player (only when in a round or dead-fade)
+    if(state!=="menu"){
+      ctx.shadowColor=dir>0?"#27e0c8":"#ff5da2"; ctx.shadowBlur=16;
+      ctx.fillStyle=state==="dead"?"#5a6b85":"#eaf2ff";
+      ctx.beginPath(); ctx.arc(player.x,player.y,player.r,0,7); ctx.fill();
+      ctx.shadowBlur=0;
+      // little arrow showing gravity dir
+      ctx.fillStyle=dir>0?"#27e0c8":"#ff5da2";
+      ctx.beginPath();
+      const ay=player.y+dir*(player.r+7);
+      ctx.moveTo(player.x-5,ay-dir*5); ctx.lineTo(player.x+5,ay-dir*5); ctx.lineTo(player.x,ay); ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // ---------- flow ----------
+  function start(){ resize(); reset(); state="play"; $("overlay").classList.add("hidden"); }
+  $("play").addEventListener("click",e=>{ e.stopPropagation(); Sound.resume(); start(); });
+
+  resize();
+  // size can be 0 on first paint inside flex; re-measure shortly
+  setTimeout(resize,60);
+  requestAnimationFrame(frame);
+
+  window.__DRIFT__={ get state(){return state}, start, flip, get score(){return score}, reset, resize, die };
+})();
+</script>
+</body>
+</html>

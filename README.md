@@ -15,6 +15,11 @@ GitHub Pages. The homepage (`index.html`) is a menu linking to every app.
 | Reflex Ring | https://tayschub.github.io/app-builder/reflex-ring/ |
 | Tower Stack | https://tayschub.github.io/app-builder/tower-stack/ |
 | Jumbl — Word Sprint | https://tayschub.github.io/app-builder/word-sprint/ |
+| Tangle | https://tayschub.github.io/app-builder/tangle/ |
+| Loop | https://tayschub.github.io/app-builder/loop/ |
+| Driftbound | https://tayschub.github.io/app-builder/driftbound/ |
+| Prism | https://tayschub.github.io/app-builder/prism/ |
+| Bloom | https://tayschub.github.io/app-builder/bloom/ |
 
 > Tip: open the homepage on your phone, then **Add to Home Screen** so it acts like an app.
 

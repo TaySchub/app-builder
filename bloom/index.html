@@ -1,0 +1,361 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0c1322" />
+<title>Bloom — a tiny garden</title>
+<style>
+  :root{
+    --bg:#0c1322; --bg2:#101b30; --ink:#eef4ff; --muted:#93a3c9; --line:#22304e;
+    --gold:#ffd98a; --leaf:#5ad19a; --accent:#7fb4ff;
+    --tap:44px; --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{background:linear-gradient(180deg,var(--bg2),var(--bg)); color:var(--ink);
+    font-family:var(--font); display:flex; flex-direction:column; min-height:100dvh; overflow:hidden;
+    user-select:none;-webkit-user-select:none}
+  header{display:flex; align-items:center; gap:10px; padding:12px 14px; z-index:2}
+  header h1{font-size:16px; margin:0; letter-spacing:2px; font-weight:800}
+  header .sub{color:var(--muted); font-size:11px}
+  .spacer{flex:1}
+  button.icon{width:var(--tap);height:var(--tap);min-width:var(--tap);border-radius:12px;
+    border:1px solid var(--line); background:#142136; color:var(--ink); font-size:18px; cursor:pointer;
+    display:grid;place-items:center}
+  button.icon:focus-visible,.btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+  .counter{text-align:center; padding:2px 0 6px}
+  .counter .big{font-size:30px; font-weight:800; font-variant-numeric:tabular-nums}
+  .counter .rate{color:var(--muted); font-size:12px}
+  .counter .big::before{content:"☀ "; font-size:24px}
+  .garden{flex:1; position:relative; min-height:160px}
+  canvas{position:absolute; inset:0; width:100%; height:100%; display:block; cursor:pointer}
+  .tap-hint{position:absolute; left:50%; bottom:10px; transform:translateX(-50%); color:var(--muted);
+    font-size:12px; pointer-events:none; transition:opacity .4s}
+  .panel{padding:8px 14px calc(12px + env(safe-area-inset-bottom)); display:flex; flex-direction:column; gap:8px}
+  .shop{display:flex; flex-direction:column; gap:8px}
+  .buy{display:flex; align-items:center; gap:12px; width:100%; text-align:left; cursor:pointer;
+    background:#142136; border:1px solid var(--line); border-radius:14px; padding:10px 14px; min-height:var(--tap);
+    color:var(--ink); font-family:inherit}
+  .buy:disabled{opacity:.45; cursor:default}
+  .buy .em{font-size:22px; width:26px; text-align:center}
+  .buy .t{flex:1}
+  .buy .t b{font-size:14px} .buy .t small{display:block; color:var(--muted); font-size:11.5px; margin-top:1px}
+  .buy .cost{font-weight:800; font-variant-numeric:tabular-nums; font-size:13px; color:var(--gold)}
+  .buy.grow{background:linear-gradient(180deg,#193a2c,#142d23); border-color:#225a40}
+  .buy.replant{background:linear-gradient(180deg,#2a2340,#201a33); border-color:#473a6e}
+  .toast{position:absolute; left:50%; top:12px; transform:translateX(-50%); background:#142136e6;
+    border:1px solid var(--line); padding:9px 16px; border-radius:14px; font-size:13px; text-align:center;
+    box-shadow:0 12px 30px #0007; z-index:3; max-width:88%}
+  .toast.hidden{display:none}
+  .toast b{color:var(--gold)}
+  @media (prefers-reduced-motion: reduce){ *{transition:none!important} }
+  @keyframes float{0%{transform:translate(-50%, -50%) scale(.6); opacity:0}
+    20%{opacity:1} 100%{transform:translate(-50%,-180%) scale(1); opacity:0}}
+</style>
+</head>
+<body>
+<header>
+  <h1>BLOOM</h1><span class="sub">a tiny garden</span>
+  <div class="spacer"></div>
+  <button class="icon" id="mute" aria-label="Toggle sound">🔊</button>
+</header>
+
+<div class="counter">
+  <div class="big" id="light">0</div>
+  <div class="rate" id="rate">+0/s · tap the orb to gather light</div>
+</div>
+
+<div class="garden" id="garden">
+  <canvas id="cv" aria-label="Your garden — tap to gather light"></canvas>
+  <div class="tap-hint" id="hint">tap the glowing orb ✷</div>
+</div>
+
+<div class="panel">
+  <div class="shop">
+    <button class="buy" id="buyTap">
+      <span class="em">✷</span>
+      <span class="t"><b>Brighter touch</b><small>More light per tap · <span id="tapLvl">Lv 1</span></small></span>
+      <span class="cost" id="tapCost">10</span>
+    </button>
+    <button class="buy" id="buySun">
+      <span class="em">☀</span>
+      <span class="t"><b>Sunlight</b><small>Gathers light on its own · <span id="sunLvl">Lv 0</span></small></span>
+      <span class="cost" id="sunCost">15</span>
+    </button>
+    <button class="buy grow" id="buyGrow">
+      <span class="em">🌱</span>
+      <span class="t"><b>Grow the plant</b><small id="growDesc">Add a new stage of growth</small></span>
+      <span class="cost" id="growCost">50</span>
+    </button>
+    <button class="buy replant" id="buyReplant" style="display:none">
+      <span class="em">✦</span>
+      <span class="t"><b>Replant</b><small>Fresh plant · keep a permanent <span id="nextMult">×1.25</span> light bonus</small></span>
+      <span class="cost">free</span>
+    </button>
+  </div>
+</div>
+
+<div class="toast hidden" id="toast"></div>
+
+<script>
+/* =====================================================================
+   BLOOM — a cozy tap-to-grow incremental "zen garden".
+   Tap to gather Light; spend it on brighter taps, passive Sunlight, and
+   growth stages that visibly expand a generative procedural plant.
+   Sunlight accrues even while the app is closed (computed from a saved
+   timestamp — purely on-device, no network). Replant for a permanent
+   multiplier. Offline, single file.
+   ===================================================================== */
+(function(){
+  "use strict";
+  const $=id=>document.getElementById(id);
+  const reduceMotion=matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v);}catch(e){return d;}},
+               set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}}};
+
+  // ---------- audio ----------
+  const Sound=(()=>{
+    let ctx=null,muted=store.get("bloom.muted",false);
+    const ac=()=>{if(!ctx){try{ctx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}return ctx;};
+    function tone(f,dur=0.1,type="sine",vol=0.12){
+      if(muted)return;const c=ac();if(!c)return;const o=c.createOscillator(),g=c.createGain();
+      o.type=type;o.frequency.value=f;o.connect(g);g.connect(c.destination);const t=c.currentTime;
+      g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(vol,t+0.008);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.start(t);o.stop(t+dur+0.02);
+    }
+    // pentatonic for pleasant taps
+    const scale=[523.25,587.33,659.25,783.99,880]; let si=0;
+    return{
+      tap(){ tone(scale[si%scale.length],0.12,"sine",0.10); si++; },
+      buy(){ tone(440,0.1,"triangle",0.12); setTimeout(()=>tone(660,0.12,"sine",0.12),60); },
+      grow(){ [392,494,587,784].forEach((f,i)=>setTimeout(()=>tone(f,0.22,"sine",0.13),i*100)); },
+      replant(){ [523,659,784,1047,1319].forEach((f,i)=>setTimeout(()=>tone(f,0.26,"sine",0.14),i*110)); },
+      toggle(){muted=!muted;store.set("bloom.muted",muted);return muted;},get muted(){return muted;},
+      resume(){const c=ac();if(c&&c.state==="suspended")c.resume();}
+    };
+  })();
+  const haptic=ms=>{try{if(navigator.vibrate)navigator.vibrate(ms);}catch(e){}};
+  const muteBtn=$("mute");
+  const paintMute=()=>muteBtn.textContent=Sound.muted?"🔇":"🔊"; paintMute();
+  muteBtn.addEventListener("click",()=>{Sound.toggle();paintMute();haptic(8);});
+
+  // ---------- state ----------
+  const MAX_STAGE=6;
+  const def={ light:0, lifetime:0, tapLevel:0, sunLevel:0, stage:0, mult:1, seed:(Math.random()*1e9|0), last:Date.now() };
+  let S=Object.assign({}, def, store.get("bloom.save", {}));
+
+  const tapPower = ()=> (1 + S.tapLevel) * S.mult;
+  const passiveRate = ()=> S.sunLevel * 0.5 * S.mult;            // light per second
+  const tapCost = ()=> Math.ceil(10 * Math.pow(1.15, S.tapLevel));
+  const sunCost = ()=> Math.ceil(15 * Math.pow(1.18, S.sunLevel));
+  const growCost = ()=> Math.ceil(50 * Math.pow(2.25, S.stage));
+
+  // ---------- number formatting ----------
+  function fmt(n){
+    n=Math.floor(n);
+    if(n<1000) return ""+n;
+    const u=["K","M","B","T"]; let i=-1; let v=n;
+    while(v>=1000 && i<u.length-1){ v/=1000; i++; }
+    return (v<10?v.toFixed(2):v<100?v.toFixed(1):Math.floor(v))+u[i];
+  }
+
+  // ---------- offline accrual ----------
+  (function welcomeBack(){
+    const now=Date.now();
+    const dt=Math.max(0,(now-(S.last||now))/1000);
+    const capped=Math.min(dt, 8*3600); // cap at 8 hours
+    const gained=passiveRate()*capped;
+    if(gained>=1){
+      S.light+=gained; S.lifetime+=gained;
+      showToast(`While you were away, your garden gathered <b>☀ ${fmt(gained)}</b> light.`, 4200);
+    }
+    S.last=now;
+  })();
+
+  function save(){ S.last=Date.now(); store.set("bloom.save", S); }
+  window.addEventListener("visibilitychange",()=>{ if(document.hidden) save(); });
+  window.addEventListener("pagehide", save);
+  setInterval(save, 5000);
+
+  // ---------- canvas / plant ----------
+  const cv=$("cv"), ctx=cv.getContext("2d");
+  let W=0,H=0,DPR=1;
+  function resize(){
+    const r=cv.getBoundingClientRect(); DPR=Math.min(window.devicePixelRatio||1,2);
+    W=r.width;H=r.height; cv.width=Math.round(W*DPR);cv.height=Math.round(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  window.addEventListener("resize",resize);
+
+  // seeded RNG (mulberry32) — stable plant shape per seed
+  function rng(seed){ let a=seed>>>0; return function(){ a|=0;a=a+0x6D2B79F5|0; let t=Math.imul(a^a>>>15,1|a);
+    t=t+Math.imul(t^t>>>7,61|t)^t; return ((t^t>>>14)>>>0)/4294967296; }; }
+
+  // recursively draw a plant; complexity scales with stage
+  function drawPlant(time){
+    const rand=rng(S.seed);
+    const baseX=W/2, baseY=H-12;
+    const depth=2+S.stage;                       // branching depth grows with stage
+    const len=Math.min(W,H)*0.16 + S.stage*4;
+    const sway=reduceMotion?0:Math.sin(time/900)*0.05;
+    ctx.lineCap="round";
+    function branch(x,y,angle,length,d){
+      if(d>depth || length<3) {
+        // leaf or flower at tip
+        if(S.stage>=3 && rand()<0.7){
+          ctx.fillStyle = (S.stage>=5 && rand()<0.5) ? "#ff9ec4" : getComputedStyle(document.documentElement).getPropertyValue("--leaf");
+          ctx.beginPath(); ctx.ellipse(x,y,4+S.stage*0.4,7+S.stage*0.5,angle,0,7); ctx.fill();
+        }
+        return;
+      }
+      const x2=x+Math.cos(angle)*length, y2=y+Math.sin(angle)*length;
+      ctx.strokeStyle=`hsl(${120- d*6}, ${40+S.stage*4}%, ${30+d*5}%)`;
+      ctx.lineWidth=Math.max(1,(depth-d)+1);
+      ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x2,y2); ctx.stroke();
+      const branches = d===0?1 : (2 + (rand()<0.3?1:0));
+      const spread=0.5+rand()*0.4;
+      for(let i=0;i<branches;i++){
+        const t = branches===1?0 : (i/(branches-1)-0.5);
+        const na = angle + t*spread + sway + (rand()-0.5)*0.2;
+        branch(x2,y2, na, length*(0.72+rand()*0.12), d+1);
+      }
+    }
+    // ground glow
+    const g=ctx.createRadialGradient(baseX,baseY,4,baseX,baseY,Math.min(W,H)*0.5);
+    g.addColorStop(0,"#1b2c49"); g.addColorStop(1,"transparent");
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+    // pot/mound
+    ctx.fillStyle="#243a5e"; ctx.beginPath();
+    ctx.ellipse(baseX,baseY+2,40+S.stage*3,10,0,0,7); ctx.fill();
+    // trunk up
+    branch(baseX, baseY, -Math.PI/2, len, 0);
+  }
+
+  // floating tap orb
+  let orb={x:0,y:0,r:0,phase:0};
+  function placeOrb(){ orb.r=Math.max(26,Math.min(W,H)*0.09); }
+
+  // particles for light gathering
+  let parts=[];
+  function spark(x,y){ if(reduceMotion){return;} for(let i=0;i<6;i++){ const a=-Math.PI/2+(Math.random()-0.5)*1.2, s=1+Math.random()*2.5;
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s-1,life:1}); } }
+
+  function render(time){
+    requestAnimationFrame(render);
+    if(W<10){ resize(); placeOrb(); }
+    ctx.clearRect(0,0,W,H);
+    drawPlant(time);
+    // orb
+    orb.x=W/2; orb.y=H*0.5; orb.phase=time/600;
+    const pr=orb.r*(1+(reduceMotion?0:Math.sin(orb.phase)*0.06));
+    const og=ctx.createRadialGradient(orb.x,orb.y,2,orb.x,orb.y,pr);
+    og.addColorStop(0,"#fff7df"); og.addColorStop(0.5,"#ffd98a"); og.addColorStop(1,"#ffd98a00");
+    ctx.fillStyle=og; ctx.beginPath(); ctx.arc(orb.x,orb.y,pr,0,7); ctx.fill();
+    ctx.fillStyle="#fffdf5"; ctx.beginPath(); ctx.arc(orb.x,orb.y,orb.r*0.42,0,7); ctx.fill();
+    // particles
+    for(const p of parts){ p.x+=p.vx; p.y+=p.vy; p.vy-=0.04; p.life-=0.025; }
+    parts=parts.filter(p=>p.life>0);
+    ctx.fillStyle="#ffe9b0";
+    for(const p of parts){ ctx.globalAlpha=Math.max(0,p.life); ctx.beginPath(); ctx.arc(p.x,p.y,2.4,0,7); ctx.fill(); }
+    ctx.globalAlpha=1;
+  }
+
+  // ---------- interactions ----------
+  function gather(x,y){
+    Sound.resume();
+    const gain=tapPower();
+    S.light+=gain; S.lifetime+=gain;
+    Sound.tap(); haptic(5);
+    spark(x??orb.x, y??orb.y);
+    paint();
+    floatText("+"+fmt(gain), x??orb.x, y??orb.y);
+  }
+  cv.addEventListener("pointerdown",e=>{
+    const r=cv.getBoundingClientRect();
+    gather(e.clientX-r.left, e.clientY-r.top);
+    $("hint").style.opacity=0;
+    e.preventDefault();
+  });
+  // keyboard: space/enter to gather
+  window.addEventListener("keydown",e=>{
+    if(e.code==="Space"||e.key==="Enter"){ e.preventDefault(); gather(); }
+  });
+
+  function floatText(txt,x,y){
+    if(reduceMotion) return;
+    const el=document.createElement("div");
+    el.textContent=txt;
+    el.style.cssText=`position:absolute; left:${x}px; top:${y}px; transform:translate(-50%,-50%);
+      color:#ffe9b0; font-weight:800; font-size:15px; pointer-events:none; text-shadow:0 2px 6px #0008;
+      animation:float 0.9s ease-out forwards; z-index:4`;
+    $("garden").appendChild(el);
+    setTimeout(()=>el.remove(),900);
+  }
+
+  // ---------- shop ----------
+  function buy(kind){
+    if(kind==="tap"){ const c=tapCost(); if(S.light<c)return; S.light-=c; S.tapLevel++; Sound.buy(); haptic(10); }
+    else if(kind==="sun"){ const c=sunCost(); if(S.light<c)return; S.light-=c; S.sunLevel++; Sound.buy(); haptic(10); }
+    else if(kind==="grow"){
+      if(S.stage>=MAX_STAGE) return;
+      const c=growCost(); if(S.light<c)return; S.light-=c; S.stage++; Sound.grow(); haptic([15,30,15]);
+      showToast(`Your plant grew! Stage <b>${S.stage}/${MAX_STAGE}</b>.`,2200);
+    }
+    else if(kind==="replant"){
+      S.mult=+(S.mult*1.25).toFixed(4); S.stage=0; S.light=0;
+      S.tapLevel=0; S.sunLevel=Math.floor(S.sunLevel*0.5); S.seed=(Math.random()*1e9|0);
+      Sound.replant(); haptic([20,40,20,60]);
+      showToast(`Replanted! Permanent light bonus is now <b>×${S.mult.toFixed(2)}</b>.`,3200);
+    }
+    save(); paint();
+  }
+  $("buyTap").addEventListener("click",()=>buy("tap"));
+  $("buySun").addEventListener("click",()=>buy("sun"));
+  $("buyGrow").addEventListener("click",()=>buy("grow"));
+  $("buyReplant").addEventListener("click",()=>buy("replant"));
+
+  // ---------- passive tick ----------
+  let acc=0, lastT=performance.now();
+  setInterval(()=>{
+    const now=performance.now(), dt=(now-lastT)/1000; lastT=now;
+    const g=passiveRate()*dt; if(g>0){ S.light+=g; S.lifetime+=g; }
+    paint();
+  }, 200);
+
+  // ---------- paint UI ----------
+  function paint(){
+    $("light").textContent=fmt(S.light);
+    const pr=passiveRate();
+    $("rate").textContent = (pr>0? `+${fmt(pr)}/s` : "+0/s") + ` · ×${S.mult.toFixed(2)} light · +${fmt(tapPower())}/tap`;
+    $("tapLvl").textContent="Lv "+(S.tapLevel+1);
+    $("sunLvl").textContent="Lv "+S.sunLevel;
+    $("tapCost").textContent=fmt(tapCost());
+    $("sunCost").textContent=fmt(sunCost());
+    $("buyTap").disabled=S.light<tapCost();
+    $("buySun").disabled=S.light<sunCost();
+    const maxed=S.stage>=MAX_STAGE;
+    $("buyGrow").style.display = maxed? "none":"flex";
+    $("buyReplant").style.display = maxed? "flex":"none";
+    if(!maxed){
+      $("growCost").textContent=fmt(growCost());
+      $("growDesc").textContent=`Stage ${S.stage}/${MAX_STAGE} — add a new burst of growth`;
+      $("buyGrow").disabled=S.light<growCost();
+    }
+    $("nextMult").textContent="×"+(S.mult*1.25).toFixed(2);
+  }
+
+  let toastT=null;
+  function showToast(html,ms){ const t=$("toast"); t.innerHTML=html; t.classList.remove("hidden");
+    clearTimeout(toastT); toastT=setTimeout(()=>t.classList.add("hidden"), ms||2500); }
+
+  // boot
+  resize(); placeOrb(); paint();
+  requestAnimationFrame(render);
+  setTimeout(()=>{ resize(); placeOrb(); },60);
+
+  window.__BLOOM__={ get S(){return S}, tapPower, passiveRate, tapCost, sunCost, growCost, buy, fmt };
+})();
+</script>
+</body>
+</html>
