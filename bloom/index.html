@@ -167,6 +167,13 @@
     return Number.isInteger(r)? String(r) : r.toFixed(1);
   }
 
+  // ---------- toast ----------
+  // Defined before offline accrual: welcomeBack() may call showToast() at load,
+  // and toastT must already be initialized (a `let` accessed earlier throws).
+  let toastT=null;
+  function showToast(html,ms){ const t=$("toast"); t.innerHTML=html; t.classList.remove("hidden");
+    clearTimeout(toastT); toastT=setTimeout(()=>t.classList.add("hidden"), ms||2500); }
+
   // ---------- offline accrual ----------
   (function welcomeBack(){
     const now=Date.now();
@@ -351,10 +358,6 @@
     }
     $("nextMult").textContent="×"+(S.mult*1.25).toFixed(2);
   }
-
-  let toastT=null;
-  function showToast(html,ms){ const t=$("toast"); t.innerHTML=html; t.classList.remove("hidden");
-    clearTimeout(toastT); toastT=setTimeout(()=>t.classList.add("hidden"), ms||2500); }
 
   // boot
   resize(); placeOrb(); paint();
