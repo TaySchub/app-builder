@@ -159,6 +159,13 @@
     while(v>=1000 && i<u.length-1){ v/=1000; i++; }
     return (v<10?v.toFixed(2):v<100?v.toFixed(1):Math.floor(v))+u[i];
   }
+  // For small rates/per-tap values that can be fractional (e.g. 0.5/s):
+  // keep one decimal under 1000 instead of flooring to 0, then fall back to fmt().
+  function fmtRate(n){
+    if(n>=1000) return fmt(n);
+    const r=Math.round(n*10)/10;
+    return Number.isInteger(r)? String(r) : r.toFixed(1);
+  }
 
   // ---------- offline accrual ----------
   (function welcomeBack(){
@@ -269,7 +276,7 @@
     Sound.tap(); haptic(5);
     spark(x??orb.x, y??orb.y);
     paint();
-    floatText("+"+fmt(gain), x??orb.x, y??orb.y);
+    floatText("+"+fmtRate(gain), x??orb.x, y??orb.y);
   }
   cv.addEventListener("pointerdown",e=>{
     const r=cv.getBoundingClientRect();
@@ -327,7 +334,7 @@
   function paint(){
     $("light").textContent=fmt(S.light);
     const pr=passiveRate();
-    $("rate").textContent = (pr>0? `+${fmt(pr)}/s` : "+0/s") + ` · ×${S.mult.toFixed(2)} light · +${fmt(tapPower())}/tap`;
+    $("rate").textContent = (pr>0? `+${fmtRate(pr)}/s` : "+0/s") + ` · ×${S.mult.toFixed(2)} light · +${fmtRate(tapPower())}/tap`;
     $("tapLvl").textContent="Lv "+(S.tapLevel+1);
     $("sunLvl").textContent="Lv "+S.sunLevel;
     $("tapCost").textContent=fmt(tapCost());
