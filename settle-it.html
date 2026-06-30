@@ -1,0 +1,527 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Settle It</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1B1733; --surface:#272145; --surface-2:#332b59;
+    --p1:#FF7A59; --p2:#36D6C3; --gold:#FFD24C;
+    --text:#F5F2FF; --muted:#A79FC9;
+    --display:"Fredoka", ui-rounded, system-ui, sans-serif;
+    --ui:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    font-family:var(--ui);
+    background:
+      radial-gradient(120% 80% at 0% 0%, rgba(255,122,89,.16), transparent 55%),
+      radial-gradient(120% 80% at 100% 100%, rgba(54,214,195,.16), transparent 55%),
+      var(--ink);
+    color:var(--text); min-height:100%;
+    display:flex; align-items:center; justify-content:center; padding:24px 16px;
+  }
+  .app{width:100%; max-width:460px;}
+  .screen{display:none; animation:rise .35s ease both;}
+  .screen.active{display:block;}
+  @keyframes rise{from{opacity:0; transform:translateY(10px);} to{opacity:1; transform:none;}}
+  @media (prefers-reduced-motion:reduce){.screen,*{animation-duration:.001s !important;}}
+  .brand{font-family:var(--display); font-weight:700; letter-spacing:-.02em; line-height:.95; text-align:center;}
+  .title{font-size:clamp(48px,15vw,72px); margin:0;}
+  .title .vs{color:var(--gold);}
+  .tagline{text-align:center; color:var(--muted); margin:12px 0 30px; font-size:16px;}
+  .card{background:var(--surface); border:1px solid rgba(255,255,255,.06); border-radius:20px; padding:18px;}
+  /* landing */
+  .landing{display:flex; flex-direction:column; align-items:center; gap:6px; padding-top:8px;}
+  .landing .games-count{color:var(--muted); font-size:13px; margin-top:22px;}
+  /* game list (used on picker) */
+  .game-list{display:flex; flex-direction:column; gap:12px;}
+  .game-btn{width:100%; text-align:left; cursor:pointer; background:var(--surface); color:var(--text);
+    border:1px solid rgba(255,255,255,.08); border-radius:18px; padding:18px;
+    display:flex; align-items:center; gap:16px; font-family:var(--ui); font-size:18px; font-weight:600;
+    transition:transform .12s ease, border-color .12s ease;}
+  .game-btn:hover:not([disabled]){transform:translateY(-2px); border-color:var(--p1);}
+  .game-btn:active:not([disabled]){transform:translateY(0);}
+  .game-btn[disabled]{opacity:.45; cursor:not-allowed;}
+  .game-emoji{font-size:30px; line-height:1;}
+  .game-meta{display:flex; flex-direction:column; gap:2px;}
+  .game-sub{font-size:13px; font-weight:500; color:var(--muted);}
+  /* setup */
+  .section-label{font-family:var(--display); font-weight:600; text-align:center; font-size:26px; margin:0 0 4px;}
+  .section-help{text-align:center; color:var(--muted); margin:0 0 22px; font-size:14px;}
+  .bestof-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:14px;}
+  .chip{cursor:pointer; font-family:var(--display); font-weight:600; font-size:20px;
+    background:var(--surface-2); color:var(--text); border:2px solid transparent; border-radius:16px;
+    padding:18px 0; transition:border-color .12s ease, transform .12s ease;}
+  .chip:hover{transform:translateY(-2px);}
+  .chip.selected{border-color:var(--gold); color:var(--gold);}
+  .custom-row{display:flex; gap:10px; margin-bottom:6px;}
+  .custom-row input{flex:1; background:var(--surface-2); border:2px solid transparent; border-radius:16px;
+    color:var(--text); font-family:var(--display); font-size:18px; padding:0 16px; outline:none; min-width:0;}
+  .custom-row input:focus{border-color:var(--gold);}
+  .custom-row .chip{padding:14px 18px; white-space:nowrap;}
+  .hint{text-align:center; color:var(--muted); font-size:13px; min-height:18px; margin-top:4px;}
+  .btn{width:100%; cursor:pointer; font-family:var(--display); font-weight:600; font-size:20px;
+    border:none; border-radius:18px; padding:18px; transition:transform .12s ease, filter .12s ease;}
+  .btn:hover{transform:translateY(-2px); filter:brightness(1.05);}
+  .btn:active{transform:translateY(0);}
+  .btn-primary{background:linear-gradient(135deg,var(--p1),var(--gold)); color:#2a1500;}
+  .btn-big{font-size:24px; padding:22px;}
+  .btn-ghost{background:transparent; color:var(--muted); border:1px solid rgba(255,255,255,.12); font-size:16px; padding:14px;}
+  .btn-surprise{background:var(--surface-2); color:var(--gold); border:2px dashed rgba(255,210,76,.5);}
+  .stack{display:flex; flex-direction:column; gap:12px; margin-top:18px;}
+  /* picker header */
+  .pick-round{font-family:var(--display); font-weight:700; font-size:30px; text-align:center; margin:0;}
+  .pick-score{text-align:center; color:var(--muted); margin:4px 0 22px; font-size:15px;}
+  /* scoreboard (game screen) */
+  .scoreboard{display:flex; gap:10px; margin-bottom:6px;}
+  .pod{flex:1; background:var(--surface); border-radius:16px; padding:12px; text-align:center; border:2px solid transparent;}
+  .pod.turn-1{border-color:var(--p1);}
+  .pod.turn-2{border-color:var(--p2);}
+  .pod .who{font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--muted);}
+  .pod .score{font-family:var(--display); font-weight:700; font-size:40px; line-height:1;}
+  .pod.p1 .score{color:var(--p1);} .pod.p2 .score{color:var(--p2);}
+  .vs-mid{align-self:center; font-family:var(--display); font-weight:600; color:var(--muted); font-size:14px; min-width:64px; text-align:center;}
+  .vs-mid small{display:block; font-size:11px;}
+  .now-playing{text-align:center; color:var(--muted); font-size:13px; margin:8px 0 0;}
+  .status{text-align:center; font-family:var(--display); font-weight:600; font-size:18px; margin:10px 0; min-height:24px;}
+  .status.p1{color:var(--p1);} .status.p2{color:var(--p2);}
+  #stage{min-height:300px;}
+  /* tic-tac-toe */
+  .board{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; aspect-ratio:1/1; margin:0 auto;}
+  .cell{cursor:pointer; background:var(--surface); border:none; border-radius:16px;
+    font-family:var(--display); font-weight:700; font-size:clamp(40px,16vw,68px); color:var(--text);
+    display:flex; align-items:center; justify-content:center; transition:background .12s ease, transform .08s ease;}
+  .cell:hover:not([disabled]):empty{background:var(--surface-2);}
+  .cell:active:not([disabled]){transform:scale(.96);}
+  .cell[disabled]{cursor:default;} .cell.x{color:var(--p1);} .cell.o{color:var(--p2);}
+  .cell.win{background:rgba(255,210,76,.18);}
+  /* coin */
+  .coin-wrap{display:flex; flex-direction:column; align-items:center; gap:24px; padding-top:20px;}
+  .coin{width:150px; height:150px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:var(--display); font-weight:700; font-size:30px; color:#2a1500;
+    background:radial-gradient(circle at 35% 30%, #ffe39a, var(--gold)); box-shadow:0 10px 30px rgba(0,0,0,.35);}
+  .coin.flipping{animation:flip 1.1s ease-out;}
+  @keyframes flip{0%{transform:rotateX(0);} 100%{transform:rotateX(1980deg);}}
+  .assign{display:flex; gap:18px; color:var(--muted); font-weight:600;}
+  .assign b.p1{color:var(--p1);} .assign b.p2{color:var(--p2);}
+  /* rps */
+  .rps-row{display:flex; gap:12px; justify-content:center; margin-top:10px;}
+  .rps-btn{cursor:pointer; width:96px; height:96px; border-radius:20px; border:2px solid rgba(255,255,255,.1);
+    background:var(--surface); font-size:46px; display:flex; align-items:center; justify-content:center;
+    transition:transform .12s ease, border-color .12s ease;}
+  .rps-btn:hover{transform:translateY(-3px); border-color:var(--gold);}
+  .pass-card{text-align:center; padding-top:40px;}
+  .pass-emoji{font-size:60px;}
+  .reveal{display:flex; align-items:center; justify-content:center; gap:18px; font-size:64px; padding-top:20px;}
+  .reveal .vlabel{font-family:var(--display); font-size:20px; color:var(--muted);}
+  /* reaction duel */
+  .duel{display:flex; flex-direction:column; gap:10px; height:360px;}
+  .zone{flex:1; border-radius:18px; display:flex; align-items:center; justify-content:center;
+    font-family:var(--display); font-weight:700; font-size:24px; cursor:pointer; user-select:none;
+    transition:background .08s ease; text-align:center; padding:10px;}
+  .zone.p1{background:rgba(255,122,89,.16); color:var(--p1); border:2px solid rgba(255,122,89,.4);}
+  .zone.p2{background:rgba(54,214,195,.16); color:var(--p2); border:2px solid rgba(54,214,195,.4); transform:rotate(180deg);}
+  .zone.go{background:var(--gold) !important; color:#2a1500 !important; border-color:var(--gold) !important;}
+  .zone.lost{opacity:.4;}
+  /* overlay */
+  .overlay{position:fixed; inset:0; background:rgba(15,12,30,.72); display:none; align-items:center;
+    justify-content:center; padding:24px; backdrop-filter:blur(3px);}
+  .overlay.active{display:flex;}
+  .overlay-card{background:var(--surface); border-radius:24px; padding:28px 24px; text-align:center;
+    max-width:340px; width:100%; border:1px solid rgba(255,255,255,.08);}
+  .overlay-emoji{font-size:48px;}
+  .overlay-title{font-family:var(--display); font-weight:700; font-size:28px; margin:8px 0 4px;}
+  .overlay-sub{color:var(--muted); margin:0 0 20px;}
+  /* series end */
+  .crown{font-size:64px; text-align:center;}
+  .winner-name{font-family:var(--display); font-weight:700; font-size:clamp(36px,11vw,52px); text-align:center; line-height:1; margin:6px 0;}
+  .winner-name.p1{color:var(--p1);} .winner-name.p2{color:var(--p2);}
+  .final-line{text-align:center; color:var(--muted); margin:6px 0 24px; font-size:17px;}
+  .focusable:focus-visible{outline:3px solid var(--gold); outline-offset:3px;}
+  /* sound toggle */
+  .sound-toggle{position:fixed; top:14px; right:14px; z-index:20; width:46px; height:46px;
+    border-radius:14px; border:1px solid rgba(255,255,255,.12); background:var(--surface);
+    color:var(--text); font-size:22px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    transition:transform .12s ease, border-color .12s ease; line-height:1;}
+  .sound-toggle:hover{transform:translateY(-2px); border-color:var(--gold);}
+  .sound-toggle.muted{color:var(--muted);}
+</style>
+</head>
+<body>
+<button class="sound-toggle" id="soundToggle" aria-label="Toggle sound" aria-pressed="true" onclick="toggleSound()">🔊</button>
+<div class="app">
+  <!-- LANDING -->
+  <section id="home" class="screen active">
+    <div class="landing">
+      <h1 class="brand title">Settle<span class="vs"> It</span></h1>
+      <p class="tagline">Two players, one device.<br>Settle any argument the fair way — play for it.</p>
+      <button class="btn btn-primary btn-big focusable" style="max-width:260px" onclick="show('setup')">Let's Play</button>
+      <p class="games-count" id="gamesCount"></p>
+    </div>
+  </section>
+  <!-- SETUP: how many games -->
+  <section id="setup" class="screen">
+    <h2 class="section-label">How many games?</h2>
+    <p class="section-help">Win the majority to settle it. You'll pick the game before each round.</p>
+    <div class="card">
+      <div class="bestof-grid">
+        <button class="chip focusable" data-n="1" onclick="pickBestOf(1)">1</button>
+        <button class="chip focusable selected" data-n="3" onclick="pickBestOf(3)">3</button>
+        <button class="chip focusable" data-n="5" onclick="pickBestOf(5)">5</button>
+        <button class="chip focusable" data-n="7" onclick="pickBestOf(7)">7</button>
+      </div>
+      <div class="custom-row">
+        <input id="customInput" type="number" inputmode="numeric" min="1" step="2" placeholder="Custom odd #" oninput="pickCustom()">
+        <button class="chip focusable" onclick="document.getElementById('customInput').focus()">Use</button>
+      </div>
+      <p class="hint" id="setupHint">Best of 3 — first to 2 wins.</p>
+    </div>
+    <div class="stack">
+      <button class="btn btn-primary focusable" onclick="startSeries()">Next</button>
+      <button class="btn btn-ghost focusable" onclick="show('home')">Back</button>
+    </div>
+  </section>
+  <!-- PICK: choose the game for this round -->
+  <section id="pick" class="screen">
+    <p class="pick-round" id="pickRound">Round 1</p>
+    <p class="pick-score" id="pickScore"></p>
+    <div class="game-list" id="gameList"></div>
+    <div class="stack">
+      <button class="btn btn-surprise focusable" onclick="chooseRandom()">🎲 Surprise me</button>
+      <button class="btn btn-ghost focusable" onclick="quitToHome()">Quit series</button>
+    </div>
+  </section>
+  <!-- GAME -->
+  <section id="game" class="screen">
+    <div class="scoreboard">
+      <div class="pod p1" id="pod1"><div class="who">Player 1</div><div class="score" id="score1">0</div></div>
+      <div class="vs-mid">VS<small id="firstTo">first to 2</small></div>
+      <div class="pod p2" id="pod2"><div class="who">Player 2</div><div class="score" id="score2">0</div></div>
+    </div>
+    <p class="now-playing" id="nowPlaying"></p>
+    <div class="status" id="status"></div>
+    <div id="stage"></div>
+    <div class="stack"><button class="btn btn-ghost focusable" onclick="quitToHome()">Quit series</button></div>
+  </section>
+  <!-- SERIES END -->
+  <section id="seriesEnd" class="screen">
+    <div class="crown">👑</div>
+    <div class="winner-name" id="winnerName">Player 1</div>
+    <p class="final-line" id="finalLine"></p>
+    <div class="stack">
+      <button class="btn btn-primary focusable" onclick="rematch()">Rematch</button>
+      <button class="btn btn-ghost focusable" onclick="show('home')">Home</button>
+    </div>
+  </section>
+</div>
+<!-- round overlay -->
+<div class="overlay" id="overlay">
+  <div class="overlay-card">
+    <div class="overlay-emoji" id="ovEmoji">🎉</div>
+    <div class="overlay-title" id="ovTitle"></div>
+    <p class="overlay-sub" id="ovSub"></p>
+    <button class="btn btn-primary focusable" id="ovBtn">Next round</button>
+  </div>
+</div>
+<script>
+/* =====================================================================
+   JUICE — self-contained sound (Web Audio, no files) + haptics.
+   One toggle controls both. Preference stored on-device only.
+===================================================================== */
+const FX = (function(){
+  let ctx=null;
+  let muted = (()=>{ try{ return localStorage.getItem('settleit_muted')==='1'; }catch(e){ return false; } })();
+  function ensure(){
+    if(!ctx){ try{ ctx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ ctx=null; } }
+    if(ctx && ctx.state==='suspended'){ ctx.resume(); }
+    return ctx;
+  }
+  function tone(freq,dur,type,vol,when){
+    if(muted) return; if(!ensure()) return;
+    const t=ctx.currentTime+(when||0);
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type=type||'triangle'; o.frequency.setValueAtTime(freq,t);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.linearRampToValueAtTime(vol||0.18,t+0.012);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g).connect(ctx.destination);
+    o.start(t); o.stop(t+dur+0.03);
+  }
+  function buzz(pattern){ if(muted) return; if(navigator.vibrate){ try{ navigator.vibrate(pattern); }catch(e){} } }
+  return {
+    ensure,
+    tap(){ tone(430,0.14,'sine',0.07); tone(660,0.12,'sine',0.04,0.015); },
+    back(){ tone(440,0.13,'sine',0.08); tone(330,0.17,'sine',0.07,0.07); },
+    start(){ tone(392,0.16,'sine',0.12,0); tone(523,0.16,'sine',0.12,0.09); tone(659,0.24,'sine',0.13,0.18); buzz(15); },
+    select(){ tone(560,0.09,'triangle',0.16); tone(760,0.09,'triangle',0.12,0.05); buzz(8); },
+    place(p){ tone(p===1?340:500,0.11,'triangle',0.18); buzz(10); },
+    flipTick(){ tone(760,0.04,'sine',0.08); },
+    go(){ tone(900,0.14,'square',0.26); buzz(25); },
+    early(){ tone(170,0.3,'sawtooth',0.22); buzz([40,40,40]); },
+    fast(){ tone(680,0.08,'square',0.18); tone(1020,0.1,'square',0.16,0.05); buzz(20); },
+    roundWin(){ tone(523,0.14,'triangle',0.2,0); tone(659,0.14,'triangle',0.2,0.12); tone(784,0.3,'triangle',0.22,0.24); buzz([20,40,30]); },
+    tie(){ tone(440,0.12,'sine',0.16,0); tone(440,0.18,'sine',0.14,0.14); buzz(15); },
+    series(){ [523,659,784,1047,1319].forEach((f,i)=>tone(f, i===4?0.45:0.16,'triangle',0.22,i*0.11)); buzz([30,40,30,40,60]); },
+    setMuted(m){ muted=m; try{ localStorage.setItem('settleit_muted', m?'1':'0'); }catch(e){} },
+    isMuted(){ return muted; }
+  };
+})();
+function toggleSound(){
+  FX.setMuted(!FX.isMuted());
+  const btn=document.getElementById('soundToggle'), m=FX.isMuted();
+  btn.textContent = m?'🔈':'🔊';
+  btn.classList.toggle('muted', m);
+  btn.setAttribute('aria-pressed', String(!m));
+  if(!m){ FX.ensure(); FX.select(); }   // little chirp to confirm it's on
+}
+/* soft tap on any button press; richer sounds layer on top per-event */
+document.addEventListener('click', e=>{
+  const b=e.target.closest('button,[role="button"]');
+  if(!b || b.disabled || b.id==='soundToggle') return;
+  if(b.classList.contains('btn-ghost')) FX.back(); else FX.tap();
+}, true);
+/* =====================================================================
+   SERIES WRAPPER — game-agnostic. Flow:
+   Let's Play -> choose series length -> [pick a game -> play] each round
+   -> series winner. Because the game is chosen per round, a single
+   series can mix Tic-Tac-Toe, Coin Flip, RPS and Fast Tap freely.
+===================================================================== */
+const state = { game:null, bestOf:3, winsNeeded:2, scores:{1:0,2:0}, roundNumber:1, startingPlayer:1 };
+const stage  = document.getElementById('stage');
+const status = document.getElementById('status');
+function show(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function setStatus(text, player){ status.textContent=text||''; status.className='status'+(player?' p'+player:''); }
+/* ---- setup ---- */
+function pickBestOf(n){
+  state.bestOf=n; document.getElementById('customInput').value='';
+  document.querySelectorAll('.chip[data-n]').forEach(c=>c.classList.toggle('selected', Number(c.dataset.n)===n));
+  updateSetupHint();
+}
+function pickCustom(){
+  const v=parseInt(document.getElementById('customInput').value,10);
+  document.querySelectorAll('.chip[data-n]').forEach(c=>c.classList.remove('selected'));
+  if(!isNaN(v)) state.bestOf=v; updateSetupHint();
+}
+function updateSetupHint(){
+  const n=state.bestOf, hint=document.getElementById('setupHint');
+  if(isNaN(n)||n<1){ hint.textContent='Pick a number of games.'; return; }
+  if(n%2===0){ hint.textContent='Use an odd number so there are no ties.'; return; }
+  hint.textContent = `Best of ${n} — first to ${Math.ceil(n/2)} wins.`;
+}
+/* ---- series lifecycle ---- */
+function startSeries(){
+  const n=state.bestOf;
+  if(isNaN(n)||n<1||n%2===0){ document.getElementById('setupHint').textContent='Please pick an odd number (1, 3, 5...).'; return; }
+  state.winsNeeded=Math.ceil(n/2);
+  FX.start();
+  state.scores={1:0,2:0}; state.roundNumber=1; state.startingPlayer=1;
+  document.getElementById('firstTo').textContent='first to '+state.winsNeeded;
+  renderScores();
+  showPicker();
+}
+function rematch(){ startSeries(); }
+/* the per-round game picker — the heart of the new flow */
+function showPicker(){
+  document.getElementById('pickRound').textContent = `Round ${state.roundNumber}`;
+  document.getElementById('pickScore').textContent = pickSummary();
+  const list=document.getElementById('gameList'); list.innerHTML='';
+  Object.entries(GAMES).filter(([,g])=>g.available).forEach(([id,g])=>{
+    const b=document.createElement('button'); b.className='game-btn focusable';
+    b.innerHTML=`<span class="game-emoji">${g.emoji}</span>
+      <span class="game-meta">${g.name}<span class="game-sub">${g.sub}</span></span>`;
+    b.onclick=()=>chooseGame(id);
+    list.appendChild(b);
+  });
+  show('pick');
+}
+function pickSummary(){
+  const a=state.scores[1], b=state.scores[2];
+  let lead;
+  if(a===b) lead = a===0 ? 'Nothing settled yet' : `All square ${a}–${b}`;
+  else lead = `Player ${a>b?1:2} leads ${Math.max(a,b)}–${Math.min(a,b)}`;
+  return `${lead} • first to ${state.winsNeeded}`;
+}
+function chooseGame(id){
+  FX.select();
+  state.game=id;
+  document.getElementById('nowPlaying').textContent = `Round ${state.roundNumber} — ${GAMES[id].name}`;
+  show('game');
+  setTurnPods(0);
+  GAMES[id].start({ startingPlayer:state.startingPlayer, reportRound });
+}
+function chooseRandom(){
+  const ids=Object.entries(GAMES).filter(([,g])=>g.available).map(([id])=>id);
+  chooseGame(ids[Math.floor(Math.random()*ids.length)]);
+}
+/* a game calls this with 1, 2, or null (no winner / replay) */
+function reportRound(winner){
+  if(winner){ state.scores[winner]++; renderScores(); FX.roundWin(); } else { FX.tie(); }
+  const sw = state.scores[1]>=state.winsNeeded ? 1 : state.scores[2]>=state.winsNeeded ? 2 : null;
+  const ov=document.getElementById('overlay');
+  document.getElementById('ovEmoji').textContent = winner===null?'🤝':'🎉';
+  document.getElementById('ovTitle').textContent = winner===null?'No winner':`Player ${winner} wins the round`;
+  document.getElementById('ovSub').textContent   = winner===null?'Nobody scores — pick again.':`Score: ${state.scores[1]}–${state.scores[2]}`;
+  const btn=document.getElementById('ovBtn');
+  btn.textContent = sw ? 'See result' : 'Next round';
+  btn.onclick = sw ? ()=>endSeries(sw) : nextRound;
+  ov.classList.add('active');
+}
+function nextRound(){
+  document.getElementById('overlay').classList.remove('active');
+  state.roundNumber++;
+  state.startingPlayer = state.startingPlayer===1?2:1;   // fairness
+  showPicker();
+}
+function endSeries(winner){
+  FX.series();
+  document.getElementById('overlay').classList.remove('active');
+  document.getElementById('winnerName').textContent=`Player ${winner}`;
+  document.getElementById('winnerName').className='winner-name p'+winner;
+  document.getElementById('finalLine').textContent=`wins the series ${state.scores[winner]}–${state.scores[winner===1?2:1]}`;
+  show('seriesEnd');
+}
+function quitToHome(){ if(confirm('Quit this series and go home?')) show('home'); }
+function renderScores(){
+  document.getElementById('score1').textContent=state.scores[1];
+  document.getElementById('score2').textContent=state.scores[2];
+}
+function setTurnPods(p){
+  document.getElementById('pod1').className='pod p1'+(p===1?' turn-1':'');
+  document.getElementById('pod2').className='pod p2'+(p===2?' turn-2':'');
+}
+/* =====================================================================
+   GAME MODULES — each renders into #stage, drives #status, and calls
+   ctx.reportRound(winner). Add a new game = add one entry here.
+===================================================================== */
+const GAMES = {
+  ttt:{
+    name:'Tic-Tac-Toe', emoji:'✖️', sub:'Outsmart your opponent', available:true,
+    start(ctx){
+      const MARK={1:'X',2:'O'}, LINES=[[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+      let board=Array(9).fill(null), current=ctx.startingPlayer, locked=false;
+      function render(winLine){
+        stage.innerHTML=''; const grid=document.createElement('div'); grid.className='board';
+        board.forEach((v,i)=>{
+          const c=document.createElement('button');
+          c.className='cell focusable'+(v==='X'?' x':v==='O'?' o':'')+(winLine&&winLine.includes(i)?' win':'');
+          c.textContent=v||''; c.setAttribute('aria-label', v?`Cell ${i+1} ${v}`:`Cell ${i+1} empty`);
+          if(v||locked) c.disabled=true; else c.onclick=()=>move(i);
+          grid.appendChild(c);
+        });
+        stage.appendChild(grid);
+      }
+      function findWin(m){ return LINES.find(l=>l.every(i=>board[i]===m))||null; }
+      function move(i){
+        if(locked||board[i]) return; board[i]=MARK[current]; FX.place(current);
+        const w=findWin(MARK[current]);
+        if(w){ locked=true; setTurnPods(0); render(w); setTimeout(()=>ctx.reportRound(current),650); return; }
+        if(board.every(x=>x!==null)){ locked=true; render(); setTimeout(()=>ctx.reportRound(null),400); return; }
+        current=current===1?2:1; setStatus(`Player ${current}'s turn`,current); setTurnPods(current); render();
+      }
+      setStatus(`Player ${current}'s turn`,current); setTurnPods(current); render();
+    }
+  },
+  coin:{
+    name:'Coin Flip', emoji:'🪙', sub:'Pure 50/50 luck', available:true,
+    start(ctx){
+      setStatus('Tap the coin to flip',0);
+      stage.innerHTML=`<div class="coin-wrap">
+        <div class="assign"><span>P1 = <b class="p1">Heads</b></span><span>P2 = <b class="p2">Tails</b></span></div>
+        <div class="coin focusable" id="coin" tabindex="0" role="button" aria-label="Flip the coin">FLIP</div>
+        <button class="btn btn-primary focusable" id="flipBtn" style="max-width:200px">Flip the coin</button></div>`;
+      const coin=document.getElementById('coin'), btn=document.getElementById('flipBtn'); let done=false;
+      function flip(){
+        if(done) return; done=true; btn.disabled=true; setStatus('Flipping…',0); coin.classList.add('flipping');
+        let ticks=0; const tk=setInterval(()=>{ FX.flipTick(); if(++ticks>=8) clearInterval(tk); },120);
+        const heads=Math.random()<0.5;
+        setTimeout(()=>{
+          coin.classList.remove('flipping'); coin.textContent=heads?'HEADS':'TAILS';
+          const winner=heads?1:2; setStatus(`${heads?'Heads':'Tails'}! Player ${winner} takes it`,winner);
+          setTimeout(()=>ctx.reportRound(winner),800);
+        },1100);
+      }
+      btn.onclick=flip; coin.onclick=flip; coin.onkeydown=e=>{ if(e.key==='Enter'||e.key===' ') flip(); };
+    }
+  },
+  rps:{
+    name:'Rock Paper Scissors', emoji:'✊', sub:'Read your rival', available:true,
+    start(ctx){
+      const ICON={rock:'✊',paper:'✋',scissors:'✌️'}, BEATS={rock:'scissors',paper:'rock',scissors:'paper'};
+      const first=ctx.startingPlayer, second=first===1?2:1; let pick1=null,pick2=null;
+      function choiceScreen(player,onPick){
+        setStatus(`Player ${player}, make your pick`,player); setTurnPods(player);
+        stage.innerHTML=`<p style="text-align:center;color:var(--muted);margin:6px 0 4px">Other player, look away! 🙈</p>
+          <div class="rps-row">
+            <button class="rps-btn focusable" data-c="rock" aria-label="Rock">✊</button>
+            <button class="rps-btn focusable" data-c="paper" aria-label="Paper">✋</button>
+            <button class="rps-btn focusable" data-c="scissors" aria-label="Scissors">✌️</button></div>`;
+        stage.querySelectorAll('.rps-btn').forEach(b=>b.onclick=()=>onPick(b.dataset.c));
+      }
+      function passScreen(toPlayer,next){
+        setStatus('Locked in',0); setTurnPods(0);
+        stage.innerHTML=`<div class="pass-card"><div class="pass-emoji">📲</div>
+          <h3 style="font-family:var(--display);margin:10px 0 4px">Pass to Player ${toPlayer}</h3>
+          <p style="color:var(--muted);margin:0 0 18px">Don't peek at the other choice!</p>
+          <button class="btn btn-primary focusable" style="max-width:220px;margin:0 auto" id="passBtn">I'm Player ${toPlayer}</button></div>`;
+        document.getElementById('passBtn').onclick=next;
+      }
+      function reveal(){
+        setStatus('Reveal!',0); setTurnPods(0);
+        const tie=pick1===pick2, winner=tie?null:(BEATS[pick1]===pick2?1:2);
+        stage.innerHTML=`<div class="reveal"><span style="color:var(--p1)">${ICON[pick1]}</span>
+          <span class="vlabel">vs</span><span style="color:var(--p2)">${ICON[pick2]}</span></div>
+          <p style="text-align:center;font-family:var(--display);font-size:20px;margin-top:18px">
+          ${tie?"Same pick — it's a tie!":`Player ${winner} wins the round`}</p>`;
+        setTimeout(()=>ctx.reportRound(winner),1300);
+      }
+      choiceScreen(first,c=>{ if(first===1) pick1=c; else pick2=c;
+        passScreen(second,()=>{ choiceScreen(second,c2=>{ if(second===1) pick1=c2; else pick2=c2; reveal(); }); }); });
+    }
+  },
+  reaction:{
+    name:'Fast Tap', emoji:'⚡', sub:'Wait for gold, then tap', available:true,
+    start(ctx){
+      setStatus('Get ready… tap GOLD first',0); setTurnPods(0);
+      stage.innerHTML=`<div class="duel">
+        <div class="zone p2 focusable" id="z2" tabindex="0">Player 2<br>wait…</div>
+        <div class="zone p1 focusable" id="z1" tabindex="0">Player 1<br>wait…</div></div>`;
+      const z1=document.getElementById('z1'), z2=document.getElementById('z2');
+      let armed=false, resolved=false, timer=null;
+      function finish(winner,reason){
+        if(resolved) return; resolved=true; clearTimeout(timer);
+        [z1,z2].forEach(z=>z.onclick=null);
+        (winner===1?z2:z1).classList.add('lost');
+        setStatus(reason,winner); setTimeout(()=>ctx.reportRound(winner),900);
+      }
+      function tap(p){
+        if(resolved) return;
+        if(!armed){ FX.early(); finish(p===1?2:1,`Player ${p} jumped early! Other player wins`); return; }
+        FX.fast(); finish(p,`Player ${p} was faster!`);
+      }
+      z1.onclick=()=>tap(1); z2.onclick=()=>tap(2);
+      z1.onkeydown=e=>{ if(e.key==='Enter'||e.key===' ') tap(1); };
+      z2.onkeydown=e=>{ if(e.key==='Enter'||e.key===' ') tap(2); };
+      timer=setTimeout(()=>{ if(resolved) return; armed=true; FX.go(); setStatus('TAP NOW!',0);
+        [z1,z2].forEach(z=>{ z.classList.add('go'); z.innerHTML='TAP!'; }); }, 1500+Math.random()*3000);
+    }
+  },
+};
+/* boot */
+document.getElementById('gamesCount').textContent =
+  `${Object.values(GAMES).filter(g=>g.available).length} games and counting`;
+updateSetupHint();
+/* reflect persisted mute preference on the toggle */
+(function(){ const btn=document.getElementById('soundToggle'), m=FX.isMuted();
+  btn.textContent=m?'🔈':'🔊'; btn.classList.toggle('muted',m); btn.setAttribute('aria-pressed',String(!m)); })();
+</script>
+</body>
+</html>
